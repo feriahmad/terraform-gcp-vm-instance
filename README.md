@@ -147,25 +147,26 @@ The cost estimates are automatically generated and included in PR comments, maki
 
 The GitHub Actions workflow is configured to use Infracost with the `--no-terraform-init` flag to prevent conflicts with the provider configuration. This is because Infracost normally creates a temporary Terraform configuration file that can conflict with the existing provider configuration in `main.tf`.
 
-Additionally, the provider configuration in `main.tf` has been set up with an alias to avoid conflicts:
+Additionally, the provider configuration in `main.tf` has been set up with an alias, and all resources explicitly use this provider:
 
 ```hcl
+# Configure the Google Cloud provider with an alias to avoid conflicts with Infracost
 provider "google" {
   project = var.project_id
   region  = var.region
   zone    = var.zone
-  alias   = "main"  # Add an alias to avoid conflicts with Infracost's provider
+  alias   = "main"
 }
 
-# Default provider for backward compatibility
-provider "google" {
-  project = var.project_id
-  region  = var.region
-  zone    = var.zone
+# Example resource using the aliased provider
+resource "google_compute_network" "vpc_network" {
+  provider                = google.main
+  name                    = "terraform-network"
+  auto_create_subnetworks = false
 }
 ```
 
-This dual provider configuration ensures that even if Infracost creates its own provider configuration, it won't conflict with our main provider.
+This approach ensures that our resources use our explicitly defined provider, while allowing Infracost to create its own provider configuration without conflicts.
 
 ### GitHub Secrets Required
 

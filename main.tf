@@ -1,28 +1,23 @@
-# Configure the Google Cloud provider
+# Configure the Google Cloud provider with an alias to avoid conflicts with Infracost
 provider "google" {
   project = var.project_id
   region  = var.region
   zone    = var.zone
-  alias   = "main"  # Add an alias to avoid conflicts with Infracost's provider
+  alias   = "main"
   # Credentials will be obtained from the GOOGLE_APPLICATION_CREDENTIALS environment variable
   # or from the service account attached to the resource in GCP
 }
 
-# Default provider for backward compatibility and to avoid having to specify the provider for each resource
-provider "google" {
-  project = var.project_id
-  region  = var.region
-  zone    = var.zone
-}
-
 # Create a VPC network
 resource "google_compute_network" "vpc_network" {
+  provider                = google.main
   name                    = "terraform-network"
   auto_create_subnetworks = false
 }
 
 # Create a subnet
 resource "google_compute_subnetwork" "subnet" {
+  provider      = google.main
   name          = "terraform-subnet"
   ip_cidr_range = "10.0.0.0/24"
   region        = var.region
@@ -31,14 +26,16 @@ resource "google_compute_subnetwork" "subnet" {
 
 # Reserve a static external IP address for the public VM
 resource "google_compute_address" "static_ip" {
-  name   = "terraform-static-ip"
-  region = var.region
+  provider = google.main
+  name     = "terraform-static-ip"
+  region   = var.region
 }
 
 # Create firewall rule for SSH, HTTP, and HTTPS for the public VM
 resource "google_compute_firewall" "public_vm_firewall" {
-  name    = "public-vm-firewall"
-  network = google_compute_network.vpc_network.id
+  provider = google.main
+  name     = "public-vm-firewall"
+  network  = google_compute_network.vpc_network.id
 
   allow {
     protocol = "tcp"
@@ -51,8 +48,9 @@ resource "google_compute_firewall" "public_vm_firewall" {
 
 # Create firewall rule for internal communication between VMs
 resource "google_compute_firewall" "internal_firewall" {
-  name    = "internal-firewall"
-  network = google_compute_network.vpc_network.id
+  provider = google.main
+  name     = "internal-firewall"
+  network  = google_compute_network.vpc_network.id
 
   allow {
     protocol = "tcp"
@@ -73,6 +71,7 @@ resource "google_compute_firewall" "internal_firewall" {
 
 # Create the public VM instance
 resource "google_compute_instance" "public_vm" {
+  provider     = google.main
   name         = "public-vm"
   machine_type = var.machine_type
   zone         = var.zone
@@ -99,6 +98,7 @@ resource "google_compute_instance" "public_vm" {
 
 # Create the private VM instances
 resource "google_compute_instance" "private_vm" {
+  provider     = google.main
   count        = 2
   name         = "private-vm-${count.index + 1}"
   machine_type = var.machine_type
