@@ -125,21 +125,10 @@ else
 fi
 echo ""
 
-echo "2. Infracost API Key:"
-echo "   To enable cost estimation for your Terraform changes, you need to set up an Infracost API key."
-echo ""
-echo "   a. Sign up for a free Infracost account at https://www.infracost.io"
-echo "   b. Get your API key from the Infracost dashboard"
-echo "   c. Add the API key as a GitHub secret named INFRACOST_API_KEY:"
-if [ "$MANUAL_SETUP" = false ]; then
-    echo "      You can use the GitHub CLI to add it:"
-    echo "      gh secret set INFRACOST_API_KEY -b\"your-api-key\" -R $GITHUB_USERNAME/$REPO_NAME"
-else
-    echo "      i. Go to your GitHub repository: https://github.com/$GITHUB_USERNAME/$REPO_NAME"
-    echo "      ii. Navigate to Settings > Secrets and variables > Actions"
-    echo "      iii. Click on 'New repository secret'"
-    echo "      iv. Name: INFRACOST_API_KEY"
-    echo "      v. Value: (Paste your Infracost API key)"
-fi
+echo "2. Infracost Integration:"
+echo "   For cost estimation, this project uses the Infracost GitHub app integration."
+echo "   To set it up:"
+echo "   a. Go to https://www.infracost.io/docs/integrations/github_app/"
+echo "   b. Follow the instructions to install the Infracost GitHub app on your repository"
 echo ""
 echo "The GitHub Actions workflow is already configured to use these secrets if they exist."
