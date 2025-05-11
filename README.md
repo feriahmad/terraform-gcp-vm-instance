@@ -129,6 +129,9 @@ This repository is configured with a GitHub Actions workflow that integrates Ter
    atlantis plan
    ```
 4. The workflow will process these commands and execute the corresponding Terraform operations.
+5. After processing the command, the workflow will post a comment with the results, including the full output of the Terraform command.
+
+The GitHub Actions workflow is configured to respond to comments containing "atlantis" commands, providing a similar experience to the actual Atlantis server but without requiring a separate server deployment.
 
 ### Infracost Integration
 

@@ -118,6 +118,7 @@ jobs:
           })
           
     - name: Process Atlantis Commands
+      id: atlantis_command
       if: github.event_name == 'issue_comment' && contains(github.event.comment.body, 'atlantis')
       run: |
         # Set SSH key for CI/CD - use secret if available, otherwise use dummy key
@@ -128,9 +129,67 @@ jobs:
         fi
         
         if [[ "${{ github.event.comment.body }}" == *"atlantis apply"* ]]; then
-          terraform apply -auto-approve
+          echo "command=apply" >> $GITHUB_OUTPUT
+          terraform apply -auto-approve | tee apply_output.txt
           echo "Applied changes via Atlantis command"
         elif [[ "${{ github.event.comment.body }}" == *"atlantis plan"* ]]; then
-          terraform plan
+          echo "command=plan" >> $GITHUB_OUTPUT
+          terraform plan | tee plan_output.txt
           echo "Generated plan via Atlantis command"
         fi
+        
+    - name: Comment on PR with Atlantis Command Result
+      uses: actions/github-script@v6
+      if: github.event_name == 'issue_comment' && contains(github.event.comment.body, 'atlantis')
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          let commandOutput = '';
+          let commandType = '${{ steps.atlantis_command.outputs.command }}';
+          
+          try {
+            if (commandType === 'apply') {
+              commandOutput = fs.readFileSync('apply_output.txt', 'utf8');
+              title = '🚀 Terraform Apply Completed';
+            } else if (commandType === 'plan') {
+              commandOutput = fs.readFileSync('plan_output.txt', 'utf8');
+              title = '📋 Terraform Plan Generated';
+            }
+            
+            const output = `### ${title}
+            
+            <details><summary>Show Output</summary>
+            
+            \`\`\`
+            ${commandOutput}
+            \`\`\`
+            
+            </details>
+            
+            *Command executed by: @${{ github.event.comment.user.login }} via \`${{ github.event.comment.body }}\`*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+          } catch (error) {
+            console.log(`Error: ${error.message}`);
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `### ⚠️ Error Processing Atlantis Command
+              
+              There was an error processing the \`${{ github.event.comment.body }}\` command:
+              
+              \`\`\`
+              ${error.message}
+              \`\`\`
+              
+              Please check the GitHub Actions logs for more details.`
+            });
+          }
