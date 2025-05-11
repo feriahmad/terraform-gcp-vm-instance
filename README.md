@@ -113,18 +113,22 @@ terraform destroy
 
 When prompted, type `yes` to confirm the deletion of resources.
 
-## CI/CD with Atlantis
+## CI/CD with Terraform and Atlantis
 
-This repository is configured with Atlantis for automated Terraform workflows through GitHub Actions. Atlantis automates Terraform plan and apply operations in response to pull requests.
+This repository is configured with a GitHub Actions workflow that integrates Terraform with Atlantis-style commands. This setup automates Terraform plan and apply operations in response to pull requests and comments.
 
 ### How it works
 
-1. When you create a pull request that modifies Terraform files (*.tf, *.tfvars), Atlantis automatically runs `terraform plan` and posts the results as a comment on the PR.
+1. When you create a pull request that modifies Terraform files (*.tf, *.tfvars), the workflow automatically runs `terraform plan` and posts the results as a comment on the PR.
 2. To apply the changes, comment on the PR with:
    ```
    atlantis apply
    ```
-3. Atlantis will only apply changes if the PR is approved and mergeable (as configured in `atlantis.yaml`).
+3. To generate a new plan, comment on the PR with:
+   ```
+   atlantis plan
+   ```
+4. The workflow will process these commands and execute the corresponding Terraform operations.
 
 ### GitHub Secrets Required
 
@@ -171,7 +175,7 @@ If you want to run Atlantis locally for testing:
 - `outputs.tf`: Output definitions
 - `terraform.tfvars`: Variable values
 - `atlantis.yaml`: Atlantis configuration file
-- `.github/workflows/atlantis.yml`: GitHub Actions workflow for Atlantis
+- `.github/workflows/atlantis.yml`: GitHub Actions workflow for Terraform with Atlantis-style commands
 - `setup-github-secrets.sh`: Helper script to set up GitHub secrets for CI/CD
 
 ## Notes
