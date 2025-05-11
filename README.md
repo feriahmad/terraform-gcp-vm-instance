@@ -143,6 +143,10 @@ Infracost provides real-time cost estimates for your infrastructure changes, hel
 
 The cost estimates are automatically generated and included in PR comments, making it easy to review the financial impact alongside the technical changes.
 
+#### Technical Note
+
+The GitHub Actions workflow is configured to use Infracost with the `--no-terraform-init` flag to prevent conflicts with the provider configuration. This is because Infracost normally creates a temporary Terraform configuration file that can conflict with the existing provider configuration in `main.tf`. By using this flag, we ensure that Infracost uses the plan JSON file directly without running Terraform init again.
+
 ### GitHub Secrets Required
 
 For the GitHub Actions workflow to function properly, you need to set up the following secrets in your GitHub repository:

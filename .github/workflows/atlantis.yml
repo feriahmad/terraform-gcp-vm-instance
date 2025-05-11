@@ -94,7 +94,9 @@ jobs:
     - name: Generate Infracost cost estimate
       id: infracost
       run: |
-        infracost breakdown --path plan.json --format json --out-file infracost.json
+        # Use --no-terraform-init-flags to prevent Infracost from running terraform init
+        # This avoids the duplicate provider configuration error
+        infracost breakdown --path plan.json --format json --out-file infracost.json --no-terraform-init
         infracost output --path infracost.json --format table --show-skipped
       continue-on-error: true
 
@@ -176,7 +178,9 @@ jobs:
           terraform show -json tfplan.binary > plan.json
           
           # Generate Infracost estimate
-          infracost breakdown --path plan.json --format json --out-file infracost.json
+          # Use --no-terraform-init to prevent Infracost from running terraform init
+          # This avoids the duplicate provider configuration error
+          infracost breakdown --path plan.json --format json --out-file infracost.json --no-terraform-init
           infracost output --path infracost.json --format table --show-skipped
           
           # Extract cost information for the comment
