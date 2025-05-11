@@ -145,7 +145,27 @@ The cost estimates are automatically generated and included in PR comments, maki
 
 #### Technical Note
 
-The GitHub Actions workflow is configured to use Infracost with the `--no-terraform-init` flag to prevent conflicts with the provider configuration. This is because Infracost normally creates a temporary Terraform configuration file that can conflict with the existing provider configuration in `main.tf`. By using this flag, we ensure that Infracost uses the plan JSON file directly without running Terraform init again.
+The GitHub Actions workflow is configured to use Infracost with the `--no-terraform-init` flag to prevent conflicts with the provider configuration. This is because Infracost normally creates a temporary Terraform configuration file that can conflict with the existing provider configuration in `main.tf`.
+
+Additionally, the provider configuration in `main.tf` has been set up with an alias to avoid conflicts:
+
+```hcl
+provider "google" {
+  project = var.project_id
+  region  = var.region
+  zone    = var.zone
+  alias   = "main"  # Add an alias to avoid conflicts with Infracost's provider
+}
+
+# Default provider for backward compatibility
+provider "google" {
+  project = var.project_id
+  region  = var.region
+  zone    = var.zone
+}
+```
+
+This dual provider configuration ensures that even if Infracost creates its own provider configuration, it won't conflict with our main provider.
 
 ### GitHub Secrets Required
 

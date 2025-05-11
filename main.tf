@@ -3,8 +3,16 @@ provider "google" {
   project = var.project_id
   region  = var.region
   zone    = var.zone
+  alias   = "main"  # Add an alias to avoid conflicts with Infracost's provider
   # Credentials will be obtained from the GOOGLE_APPLICATION_CREDENTIALS environment variable
   # or from the service account attached to the resource in GCP
+}
+
+# Default provider for backward compatibility and to avoid having to specify the provider for each resource
+provider "google" {
+  project = var.project_id
+  region  = var.region
+  zone    = var.zone
 }
 
 # Create a VPC network
