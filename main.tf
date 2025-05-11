@@ -1,9 +1,10 @@
 # Configure the Google Cloud provider
 provider "google" {
-  project     = var.project_id
-  region      = var.region
-  zone        = var.zone
-  credentials = file("~/.config/gcloud/application_default_credentials.json")
+  project = var.project_id
+  region  = var.region
+  zone    = var.zone
+  # Credentials will be obtained from the GOOGLE_APPLICATION_CREDENTIALS environment variable
+  # or from the service account attached to the resource in GCP
 }
 
 # Create a VPC network
@@ -84,7 +85,7 @@ resource "google_compute_instance" "public_vm" {
   }
 
   metadata = {
-    ssh-keys = "${var.ssh_username}:${file(var.ssh_pub_key_file)}"
+    ssh-keys = var.ssh_pub_key != "" ? "${var.ssh_username}:${var.ssh_pub_key}" : null
   }
 }
 
@@ -108,6 +109,6 @@ resource "google_compute_instance" "private_vm" {
   }
 
   metadata = {
-    ssh-keys = "${var.ssh_username}:${file(var.ssh_pub_key_file)}"
+    ssh-keys = var.ssh_pub_key != "" ? "${var.ssh_username}:${var.ssh_pub_key}" : null
   }
 }

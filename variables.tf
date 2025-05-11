@@ -33,3 +33,9 @@ variable "ssh_pub_key_file" {
   type        = string
   default     = "~/.ssh/id_rsa.pub"
 }
+
+variable "ssh_pub_key" {
+  description = "The public SSH key content (used as an alternative to ssh_pub_key_file)"
+  type        = string
+  default     = ""
+}

@@ -135,6 +135,7 @@ This repository is configured with a GitHub Actions workflow that integrates Ter
 For the GitHub Actions workflow to function properly, you need to set up the following secrets in your GitHub repository:
 
 - `GCP_SA_KEY`: The JSON key of a GCP service account with appropriate permissions for the resources in your Terraform configuration.
+- `SSH_PUBLIC_KEY` (optional): Your SSH public key for VM access. If not provided, a dummy key will be used in CI/CD environments.
 
 You can use the provided `setup-github-secrets.sh` script to help you create a GCP service account and set up the required GitHub secrets:
 
@@ -181,7 +182,11 @@ If you want to run Atlantis locally for testing:
 ## Notes
 
 - The default SSH username is set to `admin` and can be changed in the `terraform.tfvars` file.
-- The default SSH public key path is set to `~/.ssh/id_rsa.pub` and can be changed in the `terraform.tfvars` file.
+- SSH key configuration:
+  - For local development: The default SSH public key path is set to `~/.ssh/id_rsa.pub` and can be changed in the `terraform.tfvars` file.
+  - For CI/CD: A dummy SSH key is automatically set in the GitHub Actions workflow. In production, you should set a real SSH key using a secure method.
 - The firewall rules allow SSH, HTTP, and HTTPS access to the public VM from any IP address.
 - Internal communication between VMs is allowed on all ports.
-- The Terraform configuration uses the application default credentials from `~/.config/gcloud/application_default_credentials.json`, which is created by the `gcloud auth application-default login` command.
+- The Google Cloud credentials:
+  - For local development: Use `gcloud auth application-default login` to create credentials.
+  - For CI/CD: Credentials are provided through the `GCP_SA_KEY` secret and the `GOOGLE_APPLICATION_CREDENTIALS` environment variable.

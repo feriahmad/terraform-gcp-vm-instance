@@ -75,7 +75,14 @@ jobs:
     - name: Terraform Plan
       id: plan
       if: github.event_name == 'pull_request'
-      run: terraform plan -no-color
+      run: |
+        # Set SSH key for CI/CD - use secret if available, otherwise use dummy key
+        if [ -n "${{ secrets.SSH_PUBLIC_KEY }}" ]; then
+          echo 'ssh_pub_key = "${{ secrets.SSH_PUBLIC_KEY }}"' >> terraform.auto.tfvars
+        else
+          echo 'ssh_pub_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDummy"' >> terraform.auto.tfvars
+        fi
+        terraform plan -no-color
       continue-on-error: true
 
     - name: Update Pull Request
@@ -111,6 +118,13 @@ jobs:
     - name: Process Atlantis Commands
       if: github.event_name == 'issue_comment' && contains(github.event.comment.body, 'atlantis')
       run: |
+        # Set SSH key for CI/CD - use secret if available, otherwise use dummy key
+        if [ -n "${{ secrets.SSH_PUBLIC_KEY }}" ]; then
+          echo 'ssh_pub_key = "${{ secrets.SSH_PUBLIC_KEY }}"' >> terraform.auto.tfvars
+        else
+          echo 'ssh_pub_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDummy"' >> terraform.auto.tfvars
+        fi
+        
         if [[ "${{ github.event.comment.body }}" == *"atlantis apply"* ]]; then
           terraform apply -auto-approve
           echo "Applied changes via Atlantis command"
