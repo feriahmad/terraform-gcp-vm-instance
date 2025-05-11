@@ -72,6 +72,11 @@ jobs:
       id: validate
       run: terraform validate -no-color
 
+    - name: Setup Infracost
+      uses: infracost/actions/setup@v2
+      with:
+        api-key: ${{ secrets.INFRACOST_API_KEY }}
+
     - name: Terraform Plan
       id: plan
       if: github.event_name == 'pull_request'
@@ -82,7 +87,15 @@ jobs:
         else
           echo 'ssh_pub_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDummy"' >> terraform.auto.tfvars
         fi
-        terraform plan -no-color
+        terraform plan -no-color -out=tfplan.binary
+        terraform show -json tfplan.binary > plan.json
+      continue-on-error: true
+      
+    - name: Generate Infracost cost estimate
+      id: infracost
+      run: |
+        infracost breakdown --path plan.json --format json --out-file infracost.json
+        infracost output --path infracost.json --format table --show-skipped
       continue-on-error: true
 
     - name: Update Pull Request
@@ -90,22 +103,52 @@ jobs:
       if: github.event_name == 'pull_request'
       env:
         PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+        INFRACOST: "${{ steps.infracost.outputs.stdout }}"
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
+          const fs = require('fs');
+          let infracostOutput = '';
+          try {
+            const infracostJson = JSON.parse(fs.readFileSync('infracost.json', 'utf8'));
+            const totalMonthlyCost = infracostJson.totalMonthlyCost || 0;
+            const diffMonthlyCost = infracostJson.diffTotalMonthlyCost || 0;
+            
+            infracostOutput = `
+          #### Infracost Cost Estimate 💰
+          
+          **Monthly cost will increase by $${diffMonthlyCost > 0 ? diffMonthlyCost.toFixed(2) : '0.00'} to $${totalMonthlyCost.toFixed(2)}**
+          
+          <details><summary>Show Cost Breakdown</summary>
+          
+          \`\`\`
+          ${process.env.INFRACOST}
+          \`\`\`
+          
+          </details>
+          `;
+          } catch (error) {
+            infracostOutput = `
+          #### Infracost Cost Estimate 💰
+          
+          Failed to generate cost estimate: ${error.message}
+          `;
+          }
+          
           const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
           #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
           #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
           #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-
+          ${infracostOutput}
+          
           <details><summary>Show Plan</summary>
-
-          \`\`\`\n
+          
+          \`\`\`
           ${process.env.PLAN}
           \`\`\`
-
+          
           </details>
-
+          
           *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
 
           github.rest.issues.createComment({
@@ -129,6 +172,17 @@ jobs:
           terraform apply -auto-approve
           echo "Applied changes via Atlantis command"
         elif [[ "${{ github.event.comment.body }}" == *"atlantis plan"* ]]; then
-          terraform plan
+          terraform plan -out=tfplan.binary
+          terraform show -json tfplan.binary > plan.json
+          
+          # Generate Infracost estimate
+          infracost breakdown --path plan.json --format json --out-file infracost.json
+          infracost output --path infracost.json --format table --show-skipped
+          
+          # Extract cost information for the comment
+          TOTAL_COST=$(jq -r '.totalMonthlyCost // 0' infracost.json)
+          DIFF_COST=$(jq -r '.diffTotalMonthlyCost // 0' infracost.json)
+          
           echo "Generated plan via Atlantis command"
+          echo "💰 Monthly cost estimate: $${TOTAL_COST} (change: $${DIFF_COST})"
         fi

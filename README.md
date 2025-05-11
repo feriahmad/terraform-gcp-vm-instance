@@ -113,22 +113,35 @@ terraform destroy
 
 When prompted, type `yes` to confirm the deletion of resources.
 
-## CI/CD with Terraform and Atlantis
+## CI/CD with Terraform, Atlantis, and Infracost
 
-This repository is configured with a GitHub Actions workflow that integrates Terraform with Atlantis-style commands. This setup automates Terraform plan and apply operations in response to pull requests and comments.
+This repository is configured with a GitHub Actions workflow that integrates Terraform with Atlantis-style commands and Infracost for cost estimation. This setup automates Terraform plan and apply operations in response to pull requests and comments, while also providing cost estimates for infrastructure changes.
 
 ### How it works
 
 1. When you create a pull request that modifies Terraform files (*.tf, *.tfvars), the workflow automatically runs `terraform plan` and posts the results as a comment on the PR.
-2. To apply the changes, comment on the PR with:
+2. Infracost analyzes the Terraform plan and generates a cost estimate for the infrastructure changes.
+3. The cost estimate is included in the PR comment, showing the current monthly cost and any cost changes resulting from the PR.
+4. To apply the changes, comment on the PR with:
    ```
    atlantis apply
    ```
-3. To generate a new plan, comment on the PR with:
+5. To generate a new plan, comment on the PR with:
    ```
    atlantis plan
    ```
-4. The workflow will process these commands and execute the corresponding Terraform operations.
+6. The workflow will process these commands and execute the corresponding Terraform operations.
+
+### Infracost Integration
+
+Infracost provides real-time cost estimates for your infrastructure changes, helping you understand the financial impact of your Terraform modifications before applying them. Key benefits include:
+
+- **Cost Transparency**: See the estimated monthly cost of your infrastructure in each PR.
+- **Cost Diff**: Understand how your changes will affect your cloud bill.
+- **Detailed Breakdown**: View a detailed breakdown of costs by resource type.
+- **Informed Decisions**: Make cost-conscious decisions about infrastructure changes.
+
+The cost estimates are automatically generated and included in PR comments, making it easy to review the financial impact alongside the technical changes.
 
 ### GitHub Secrets Required
 
@@ -136,6 +149,7 @@ For the GitHub Actions workflow to function properly, you need to set up the fol
 
 - `GCP_SA_KEY`: The JSON key of a GCP service account with appropriate permissions for the resources in your Terraform configuration.
 - `SSH_PUBLIC_KEY` (optional): Your SSH public key for VM access. If not provided, a dummy key will be used in CI/CD environments.
+- `INFRACOST_API_KEY`: API key for Infracost to generate cost estimates. You can get a free API key at [infracost.io](https://www.infracost.io/docs/#2-get-api-key).
 
 You can use the provided `setup-github-secrets.sh` script to help you create a GCP service account and set up the required GitHub secrets:
 
