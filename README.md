@@ -115,16 +115,16 @@ When prompted, type `yes` to confirm the deletion of resources.
 
 ## CI/CD with Terraform and Atlantis
 
-This repository is configured with a GitHub Actions workflow that integrates Terraform with Atlantis for automated infrastructure management. This setup automates Terraform plan and apply operations in response to pull requests and comments.
+This repository is configured with a GitHub Actions workflow that integrates Terraform with Atlantis for automated infrastructure management. The workflow uses the official Atlantis Docker image to run Atlantis commands directly in response to pull requests and comments.
 
 ### How it works
 
-1. When you create a pull request that modifies Terraform files (*.tf, *.tfvars), the workflow automatically runs `terraform plan` and posts the results as a comment on the PR.
+1. When you create a pull request that modifies Terraform files (*.tf, *.tfvars), the workflow automatically runs Atlantis autoplan and posts the results as a comment on the PR.
 2. You can use the following Atlantis commands in PR comments:
    ```
    atlantis plan           # Generate a new plan
    atlantis apply          # Apply the current plan
-   atlantis unlock         # Unlock the Terraform state
+   atlantis unlock <id>    # Unlock the Terraform state with the specified lock ID
    atlantis approve_policies # Approve any policy checks
    atlantis version        # Show the Atlantis version
    atlantis help           # Show help information
@@ -136,11 +136,14 @@ This repository is configured with a GitHub Actions workflow that integrates Ter
    
    # To apply changes
    atlantis apply
+   
+   # To unlock a state
+   atlantis unlock 1234abcd-ef56-7890
    ```
-4. The workflow will process these commands and execute the corresponding Terraform operations.
-5. After processing the command, the workflow will post a comment with the results, including the full output of the Terraform command.
+4. The workflow runs the Atlantis Docker container with your specified command and captures the output.
+5. After processing the command, the workflow posts a comment on the PR with the results, including the full output from Atlantis.
 
-The GitHub Actions workflow is configured to respond to comments containing Atlantis commands, providing the same experience as a dedicated Atlantis server but without requiring a separate server deployment.
+The GitHub Actions workflow is configured to respond to comments containing Atlantis commands, providing the same experience as a dedicated Atlantis server but without requiring a separate server deployment. It uses the official Atlantis Docker image to ensure compatibility and consistent behavior with standard Atlantis deployments.
 
 ### Infracost Integration
 
@@ -167,9 +170,11 @@ resource "google_compute_network" "vpc_network" {
 
 ### GitHub Secrets Required
 
-For the GitHub Actions workflow to function properly, you need to set up the following secrets in your GitHub repository:
+For the Atlantis GitHub Actions workflow to function properly, you need to set up the following secrets in your GitHub repository:
 
-- `GCP_SA_KEY`: The JSON key of a GCP service account with appropriate permissions for the resources in your Terraform configuration.
+- `GCP_SA_KEY`: The JSON key of a GCP service account with appropriate permissions for the resources in your Terraform configuration. This is passed to the Atlantis Docker container as the `GOOGLE_CREDENTIALS` environment variable.
+- `GCP_PROJECT_ID`: Your Google Cloud project ID. This is passed to the Atlantis Docker container as the `TF_VAR_project_id` environment variable.
+- `GITHUB_TOKEN`: This is automatically provided by GitHub Actions and is used by Atlantis to comment on PRs and interact with the GitHub API.
 - `SSH_PUBLIC_KEY` (optional): Your SSH public key for VM access. If not provided, a dummy key will be used in CI/CD environments.
 
 You can use the provided `setup-github-secrets.sh` script to help you create a GCP service account and set up the required GitHub secrets:
