@@ -90,7 +90,7 @@ jobs:
           -v "$(pwd):/atlantis/repos" \
           -v ~/.atlantis:/atlantis/data \
           ghcr.io/runatlantis/atlantis:v0.22.3 \
-          atlantis plan \
+          plan \
           --dir=. \
           --workspace=default \
           --project=terraform-gcp-vm-instance > /tmp/atlantis_output.txt 2>&1 || true
@@ -128,7 +128,7 @@ jobs:
           -v "$(pwd):/atlantis/repos" \
           -v ~/.atlantis:/atlantis/data \
           ghcr.io/runatlantis/atlantis:v0.22.3 \
-          atlantis ${ATLANTIS_CMD} ${ATLANTIS_ARGS} \
+          ${ATLANTIS_CMD} ${ATLANTIS_ARGS} \
           --dir=. \
           --workspace=default \
           --project=terraform-gcp-vm-instance > /tmp/atlantis_output.txt 2>&1 || true
