@@ -19,7 +19,7 @@ variable "zone" {
 variable "machine_type" {
   description = "The machine type for VM instances"
   type        = string
-  default     = "e2-small"
+  default     = "e2-medium"
 }
 
 variable "ssh_username" {
