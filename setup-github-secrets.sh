@@ -80,6 +80,10 @@ if [ "$MANUAL_SETUP" = false ]; then
     echo "Setting GCP_SA_KEY secret in GitHub repository..."
     gh secret set GCP_SA_KEY -b"$(cat gcp-sa-key.json)" -R $GITHUB_USERNAME/$REPO_NAME
     
+    # Set GCP_PROJECT_ID secret
+    echo "Setting GCP_PROJECT_ID secret in GitHub repository..."
+    gh secret set GCP_PROJECT_ID -b"$PROJECT_ID" -R $GITHUB_USERNAME/$REPO_NAME
+    
     echo "GitHub secrets set up successfully!"
 else
     echo ""
@@ -88,9 +92,11 @@ else
     echo "1. Go to your GitHub repository: https://github.com/$GITHUB_USERNAME/$REPO_NAME"
     echo "2. Navigate to Settings > Secrets and variables > Actions"
     echo "3. Click on 'New repository secret'"
-    echo "4. Add the following secret:"
-    echo "   Name: GCP_SA_KEY"
-    echo "   Value: (Copy the contents of the gcp-sa-key.json file)"
+    echo "4. Add the following secrets:"
+    echo "   a. Name: GCP_SA_KEY"
+    echo "      Value: (Copy the contents of the gcp-sa-key.json file)"
+    echo "   b. Name: GCP_PROJECT_ID"
+    echo "      Value: $PROJECT_ID"
     echo ""
 fi
 

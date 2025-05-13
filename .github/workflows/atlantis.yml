@@ -1,15 +1,18 @@
-name: Terraform with Atlantis
+name: Atlantis
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, closed]
   pull_request_review:
     types: [submitted]
+  pull_request_review_comment:
+    types: [created]
   issue_comment:
     types: [created]
   push:
     branches:
       - main
+      - master
 
 permissions:
   contents: read
@@ -18,178 +21,165 @@ permissions:
   statuses: write
 
 jobs:
-  terraform:
+  atlantis:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v3
-
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
       with:
-        terraform_version: 1.0.0
-        
-    - name: Setup Google Cloud SDK
-      uses: google-github-actions/setup-gcloud@v0.6.0
-      with:
-        project_id: polished-tube-312806
-        service_account_key: ${{ secrets.GCP_SA_KEY }}
-        export_default_credentials: true
+        fetch-depth: 0
 
-    - name: Download Atlantis
+    # Determine if this is a PR comment and if it contains an Atlantis command
+    - name: Check for Atlantis command
+      id: check_comment
+      if: github.event_name == 'issue_comment' && github.event.issue.pull_request
       run: |
-        wget https://github.com/runatlantis/atlantis/releases/download/v0.19.8/atlantis_linux_amd64.zip
-        unzip atlantis_linux_amd64.zip
-        sudo mv atlantis /usr/local/bin/
+        COMMENT="${{ github.event.comment.body }}"
+        if [[ "$COMMENT" == "atlantis "* ]]; then
+          echo "command=$(echo $COMMENT | cut -d' ' -f2-)" >> $GITHUB_OUTPUT
+          echo "Found Atlantis command: $(echo $COMMENT | cut -d' ' -f2-)"
+        else
+          echo "No Atlantis command found"
+        fi
 
-    - name: Create Atlantis config
-      run: |
-        cat > atlantis-config.yaml <<EOF
-        repos:
-        - id: ${{ github.repository }}
-          workflow: custom
-        workflows:
-          custom:
-            plan:
-              steps:
-              - run: terraform init -input=false
-              - run: terraform plan -input=false -out=\$PLANFILE
-            apply:
-              steps:
-              - run: terraform apply -input=false \$PLANFILE
-        EOF
-
-    - name: Terraform Format
-      id: fmt
-      run: terraform fmt -check
-      continue-on-error: true
-
-    - name: Terraform Init
-      id: init
-      run: terraform init
-
-    - name: Terraform Validate
-      id: validate
-      run: terraform validate -no-color
-
-    - name: Terraform Plan
-      id: plan
+    # If this is a PR, get the PR number
+    - name: Get PR number
+      id: get_pr
       if: github.event_name == 'pull_request'
       run: |
-        # Set SSH key for CI/CD - use secret if available, otherwise use dummy key
-        if [ -n "${{ secrets.SSH_PUBLIC_KEY }}" ]; then
-          echo 'ssh_pub_key = "${{ secrets.SSH_PUBLIC_KEY }}"' >> terraform.auto.tfvars
-        else
-          echo 'ssh_pub_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDummy"' >> terraform.auto.tfvars
-        fi
-        terraform plan -no-color
-      continue-on-error: true
+        echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
 
-    - name: Update Pull Request
-      uses: actions/github-script@v6
+    # If this is a comment, get the PR number from the issue
+    - name: Get PR number from comment
+      id: get_pr_from_comment
+      if: github.event_name == 'issue_comment' && github.event.issue.pull_request
+      run: |
+        echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+
+    # Checkout the PR branch if this is a comment on a PR
+    - name: Checkout PR branch
+      if: github.event_name == 'issue_comment' && github.event.issue.pull_request && steps.check_comment.outputs.command != ''
+      run: |
+        PR_NUMBER=${{ steps.get_pr_from_comment.outputs.pr_number }}
+        git fetch origin pull/$PR_NUMBER/head:pr-$PR_NUMBER
+        git checkout pr-$PR_NUMBER
+
+    # Run Atlantis in Docker for autoplan on PR
+    - name: Run Atlantis Autoplan
       if: github.event_name == 'pull_request'
       env:
-        PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
-          #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-          #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-          #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-          
-          <details><summary>Show Plan</summary>
-          
-          \`\`\`
-          ${process.env.PLAN}
-          \`\`\`
-          
-          </details>
-          
-          *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*
-          
-          *Note: Cost estimates will be provided by the Infracost GitHub app integration.*`;
-
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: output
-          })
-          
-    - name: Process Atlantis Commands
-      id: atlantis_command
-      if: github.event_name == 'issue_comment' && contains(github.event.comment.body, 'atlantis')
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       run: |
-        # Set SSH key for CI/CD - use secret if available, otherwise use dummy key
-        if [ -n "${{ secrets.SSH_PUBLIC_KEY }}" ]; then
-          echo 'ssh_pub_key = "${{ secrets.SSH_PUBLIC_KEY }}"' >> terraform.auto.tfvars
-        else
-          echo 'ssh_pub_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDummy"' >> terraform.auto.tfvars
-        fi
-        
-        if [[ "${{ github.event.comment.body }}" == *"atlantis apply"* ]]; then
-          echo "command=apply" >> $GITHUB_OUTPUT
-          terraform apply -auto-approve | tee apply_output.txt
-          echo "Applied changes via Atlantis command"
-        elif [[ "${{ github.event.comment.body }}" == *"atlantis plan"* ]]; then
-          echo "command=plan" >> $GITHUB_OUTPUT
-          terraform plan | tee plan_output.txt
-          echo "Generated plan via Atlantis command"
-        fi
-        
-    - name: Comment on PR with Atlantis Command Result
+        # Create a directory for Atlantis data
+        mkdir -p ~/.atlantis
+
+        # Set default project ID if not provided
+        PROJECT_ID="${GCP_PROJECT_ID:-default-project-id}"
+
+        # Run Atlantis server in Docker with autoplan
+        docker run --rm \
+          -e ATLANTIS_GH_TOKEN="${GITHUB_TOKEN}" \
+          -e ATLANTIS_GH_USER="${{ github.repository_owner }}" \
+          -e ATLANTIS_GH_WEBHOOK_SECRET="dummy-secret" \
+          -e ATLANTIS_REPO_ALLOWLIST="${{ github.repository }}" \
+          -e ATLANTIS_ATLANTIS_URL="https://github.com/${{ github.repository }}/pull/${{ steps.get_pr.outputs.pr_number }}" \
+          -e GOOGLE_CREDENTIALS="${GCP_SA_KEY}" \
+          -e TF_VAR_project_id="${PROJECT_ID}" \
+          -v "$(pwd):/atlantis/repos" \
+          -v ~/.atlantis:/atlantis/data \
+          ghcr.io/runatlantis/atlantis:v0.22.3 \
+          plan \
+          --dir=. \
+          --workspace=default \
+          --project=terraform-gcp-vm-instance > /tmp/atlantis_output.txt 2>&1 || true
+
+        # Display output for debugging
+        cat /tmp/atlantis_output.txt
+
+    # Run Atlantis in Docker for comment commands
+    - name: Run Atlantis Command
+      if: github.event_name == 'issue_comment' && github.event.issue.pull_request && steps.check_comment.outputs.command != ''
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      run: |
+        # Create a directory for Atlantis data
+        mkdir -p ~/.atlantis
+
+        # Set default project ID if not provided
+        PROJECT_ID="${GCP_PROJECT_ID:-default-project-id}"
+
+        # Extract the Atlantis command
+        ATLANTIS_CMD=$(echo "${{ steps.check_comment.outputs.command }}" | cut -d' ' -f1)
+        ATLANTIS_ARGS=$(echo "${{ steps.check_comment.outputs.command }}" | cut -d' ' -f2- || echo "")
+
+        # Run Atlantis server in Docker with the specified command
+        docker run --rm \
+          -e ATLANTIS_GH_TOKEN="${GITHUB_TOKEN}" \
+          -e ATLANTIS_GH_USER="${{ github.repository_owner }}" \
+          -e ATLANTIS_GH_WEBHOOK_SECRET="dummy-secret" \
+          -e ATLANTIS_REPO_ALLOWLIST="${{ github.repository }}" \
+          -e ATLANTIS_ATLANTIS_URL="https://github.com/${{ github.repository }}/pull/${{ steps.get_pr_from_comment.outputs.pr_number }}" \
+          -e GOOGLE_CREDENTIALS="${GCP_SA_KEY}" \
+          -e TF_VAR_project_id="${PROJECT_ID}" \
+          -v "$(pwd):/atlantis/repos" \
+          -v ~/.atlantis:/atlantis/data \
+          ghcr.io/runatlantis/atlantis:v0.22.3 \
+          ${ATLANTIS_CMD} ${ATLANTIS_ARGS} \
+          --dir=. \
+          --workspace=default \
+          --project=terraform-gcp-vm-instance > /tmp/atlantis_output.txt 2>&1 || true
+
+        # Display output for debugging
+        cat /tmp/atlantis_output.txt
+
+    # Comment on PR with autoplan output
+    - name: Comment on PR with autoplan output
+      if: github.event_name == 'pull_request'
       uses: actions/github-script@v6
-      if: github.event_name == 'issue_comment' && contains(github.event.comment.body, 'atlantis')
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
           const fs = require('fs');
-          let commandOutput = '';
-          let commandType = '${{ steps.atlantis_command.outputs.command }}';
+          let output;
           
           try {
-            if (commandType === 'apply') {
-              commandOutput = fs.readFileSync('apply_output.txt', 'utf8');
-              title = '🚀 Terraform Apply Completed';
-            } else if (commandType === 'plan') {
-              commandOutput = fs.readFileSync('plan_output.txt', 'utf8');
-              title = '📋 Terraform Plan Generated';
-            }
-            
-            const output = `### ${title}
-            
-            <details><summary>Show Output</summary>
-            
-            \`\`\`
-            ${commandOutput}
-            \`\`\`
-            
-            </details>
-            
-            *Command executed by: @${{ github.event.comment.user.login }} via \`${{ github.event.comment.body }}\`*`;
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            });
+            output = fs.readFileSync('/tmp/atlantis_output.txt', 'utf8');
           } catch (error) {
-            console.log(`Error: ${error.message}`);
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `### ⚠️ Error Processing Atlantis Command
-              
-              There was an error processing the \`${{ github.event.comment.body }}\` command:
-              
-              \`\`\`
-              ${error.message}
-              \`\`\`
-              
-              Please check the GitHub Actions logs for more details.`
-            });
+            output = 'Atlantis autoplan completed. No output captured.';
           }
+          
+          github.rest.issues.createComment({
+            issue_number: ${{ github.event.pull_request.number }},
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## Atlantis Autoplan Output\n\n\`\`\`\n${output}\n\`\`\``
+          });
+
+    # Comment on PR with command output
+    - name: Comment on PR with command output
+      if: github.event_name == 'issue_comment' && github.event.issue.pull_request && steps.check_comment.outputs.command != ''
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          let output;
+          
+          try {
+            output = fs.readFileSync('/tmp/atlantis_output.txt', 'utf8');
+          } catch (error) {
+            output = 'Atlantis command completed. No output captured.';
+          }
+          
+          const command = "${{ steps.check_comment.outputs.command }}".split(' ')[0];
+          
+          github.rest.issues.createComment({
+            issue_number: ${{ github.event.issue.number }},
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## Atlantis ${command.charAt(0).toUpperCase() + command.slice(1)} Output\n\n\`\`\`\n${output}\n\`\`\``
+          });
