@@ -67,20 +67,27 @@ jobs:
     # Run Atlantis in Docker for autoplan on PR
     - name: Run Atlantis Autoplan
       if: github.event_name == 'pull_request'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       run: |
         # Create a directory for Atlantis data
         mkdir -p ~/.atlantis
 
-        # Run Atlantis server in Docker with autoplan and capture output
+        # Set default project ID if not provided
+        PROJECT_ID="${GCP_PROJECT_ID:-default-project-id}"
+
+        # Run Atlantis server in Docker with autoplan
         docker run --rm \
-          -e ATLANTIS_GH_TOKEN=${{ secrets.GITHUB_TOKEN }} \
-          -e ATLANTIS_GH_USER=${{ github.repository_owner }} \
-          -e ATLANTIS_GH_WEBHOOK_SECRET=dummy-secret \
-          -e ATLANTIS_REPO_ALLOWLIST=${{ github.repository }} \
-          -e ATLANTIS_ATLANTIS_URL=https://github.com/${{ github.repository }}/pull/${{ steps.get_pr.outputs.pr_number }} \
-          -e GOOGLE_CREDENTIALS=${{ secrets.GCP_SA_KEY }} \
-          -e TF_VAR_project_id=${{ secrets.GCP_PROJECT_ID }} \
-          -v $(pwd):/atlantis/repos \
+          -e ATLANTIS_GH_TOKEN="${GITHUB_TOKEN}" \
+          -e ATLANTIS_GH_USER="${{ github.repository_owner }}" \
+          -e ATLANTIS_GH_WEBHOOK_SECRET="dummy-secret" \
+          -e ATLANTIS_REPO_ALLOWLIST="${{ github.repository }}" \
+          -e ATLANTIS_ATLANTIS_URL="https://github.com/${{ github.repository }}/pull/${{ steps.get_pr.outputs.pr_number }}" \
+          -e GOOGLE_CREDENTIALS="${GCP_SA_KEY}" \
+          -e TF_VAR_project_id="${PROJECT_ID}" \
+          -v "$(pwd):/atlantis/repos" \
           -v ~/.atlantis:/atlantis/data \
           ghcr.io/runatlantis/atlantis:v0.22.3 \
           atlantis plan \
@@ -94,27 +101,34 @@ jobs:
     # Run Atlantis in Docker for comment commands
     - name: Run Atlantis Command
       if: github.event_name == 'issue_comment' && github.event.issue.pull_request && steps.check_comment.outputs.command != ''
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       run: |
         # Create a directory for Atlantis data
         mkdir -p ~/.atlantis
+
+        # Set default project ID if not provided
+        PROJECT_ID="${GCP_PROJECT_ID:-default-project-id}"
 
         # Extract the Atlantis command
         ATLANTIS_CMD=$(echo "${{ steps.check_comment.outputs.command }}" | cut -d' ' -f1)
         ATLANTIS_ARGS=$(echo "${{ steps.check_comment.outputs.command }}" | cut -d' ' -f2- || echo "")
 
-        # Run Atlantis server in Docker with the specified command and capture output
+        # Run Atlantis server in Docker with the specified command
         docker run --rm \
-          -e ATLANTIS_GH_TOKEN=${{ secrets.GITHUB_TOKEN }} \
-          -e ATLANTIS_GH_USER=${{ github.repository_owner }} \
-          -e ATLANTIS_GH_WEBHOOK_SECRET=dummy-secret \
-          -e ATLANTIS_REPO_ALLOWLIST=${{ github.repository }} \
-          -e ATLANTIS_ATLANTIS_URL=https://github.com/${{ github.repository }}/pull/${{ steps.get_pr_from_comment.outputs.pr_number }} \
-          -e GOOGLE_CREDENTIALS=${{ secrets.GCP_SA_KEY }} \
-          -e TF_VAR_project_id=${{ secrets.GCP_PROJECT_ID }} \
-          -v $(pwd):/atlantis/repos \
+          -e ATLANTIS_GH_TOKEN="${GITHUB_TOKEN}" \
+          -e ATLANTIS_GH_USER="${{ github.repository_owner }}" \
+          -e ATLANTIS_GH_WEBHOOK_SECRET="dummy-secret" \
+          -e ATLANTIS_REPO_ALLOWLIST="${{ github.repository }}" \
+          -e ATLANTIS_ATLANTIS_URL="https://github.com/${{ github.repository }}/pull/${{ steps.get_pr_from_comment.outputs.pr_number }}" \
+          -e GOOGLE_CREDENTIALS="${GCP_SA_KEY}" \
+          -e TF_VAR_project_id="${PROJECT_ID}" \
+          -v "$(pwd):/atlantis/repos" \
           -v ~/.atlantis:/atlantis/data \
           ghcr.io/runatlantis/atlantis:v0.22.3 \
-          atlantis $ATLANTIS_CMD $ATLANTIS_ARGS \
+          atlantis ${ATLANTIS_CMD} ${ATLANTIS_ARGS} \
           --dir=. \
           --workspace=default \
           --project=terraform-gcp-vm-instance > /tmp/atlantis_output.txt 2>&1 || true
