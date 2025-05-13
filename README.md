@@ -115,23 +115,32 @@ When prompted, type `yes` to confirm the deletion of resources.
 
 ## CI/CD with Terraform and Atlantis
 
-This repository is configured with a GitHub Actions workflow that integrates Terraform with Atlantis-style commands. This setup automates Terraform plan and apply operations in response to pull requests and comments.
+This repository is configured with a GitHub Actions workflow that integrates Terraform with Atlantis for automated infrastructure management. This setup automates Terraform plan and apply operations in response to pull requests and comments.
 
 ### How it works
 
 1. When you create a pull request that modifies Terraform files (*.tf, *.tfvars), the workflow automatically runs `terraform plan` and posts the results as a comment on the PR.
-2. To apply the changes, comment on the PR with:
+2. You can use the following Atlantis commands in PR comments:
    ```
-   atlantis apply
+   atlantis plan           # Generate a new plan
+   atlantis apply          # Apply the current plan
+   atlantis unlock         # Unlock the Terraform state
+   atlantis approve_policies # Approve any policy checks
+   atlantis version        # Show the Atlantis version
+   atlantis help           # Show help information
    ```
-3. To generate a new plan, comment on the PR with:
+3. Example usage:
    ```
+   # To run a plan
    atlantis plan
+   
+   # To apply changes
+   atlantis apply
    ```
 4. The workflow will process these commands and execute the corresponding Terraform operations.
 5. After processing the command, the workflow will post a comment with the results, including the full output of the Terraform command.
 
-The GitHub Actions workflow is configured to respond to comments containing "atlantis" commands, providing a similar experience to the actual Atlantis server but without requiring a separate server deployment.
+The GitHub Actions workflow is configured to respond to comments containing Atlantis commands, providing the same experience as a dedicated Atlantis server but without requiring a separate server deployment.
 
 ### Infracost Integration
 
@@ -202,7 +211,7 @@ If you want to run Atlantis locally for testing:
 - `outputs.tf`: Output definitions
 - `terraform.tfvars`: Variable values
 - `atlantis.yaml`: Atlantis configuration file
-- `.github/workflows/atlantis.yml`: GitHub Actions workflow for Terraform with Atlantis-style commands
+- `.github/workflows/atlantis.yml`: GitHub Actions workflow for Terraform with Atlantis comment-based operations
 - `setup-github-secrets.sh`: Helper script to set up GitHub secrets for CI/CD
 
 ## Notes
